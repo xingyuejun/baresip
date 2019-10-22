@@ -5,13 +5,13 @@
 #
 # External libraries:
 #
+#   USE_AAC           AAC audio codec
 #   USE_ALSA          ALSA audio driver
 #   USE_AMR           Adaptive Multi-Rate (AMR) audio codec
 #   USE_AUDIOUNIT     AudioUnit audio driver for OSX/iOS
 #   USE_AVCAPTURE     AVFoundation video capture for OSX/iOS
 #   USE_AVCODEC       avcodec video codec module
 #   USE_AVFORMAT      avformat video source module
-#   USE_BV32          BroadVoice32 Wideband Audio codec
 #   USE_CAIRO         Cairo module
 #   USE_CODEC2        CODEC2 low-bitrate speech audio codec
 #   USE_CONS          Console input driver
@@ -23,10 +23,9 @@
 #   USE_G722_1        G.722.1 audio codec
 #   USE_G726          G.726 audio codec
 #   USE_GSM           GSM audio codec
-#   USE_GST1          Gstreamer 1.0 audio module
-#   USE_GST_VIDEO1    Gstreamer 1.0 video module
+#   USE_GST           Gstreamer audio module
+#   USE_GST_VIDEO     Gstreamer video module
 #   USE_GTK           GTK+ user interface
-#   USE_H265          H.265 video codec
 #   USE_ILBC          iLBC audio codec
 #   USE_ISAC          iSAC audio codec
 #   USE_JACK          JACK Audio Connection Kit audio driver
@@ -65,23 +64,27 @@ USE_L16   := 1
 
 ifneq ($(OS),win32)
 
+USE_AAC  := $(shell [ -f $(SYSROOT)/include/fdk-aac/FDK_audio.h ] || \
+	[ -f $(SYSROOT_LOCAL)/include/fdk-aac/FDK_audio.h ] || \
+	[ -f $(SYSROOT_ALT)/include/fdk-aac/FDK_audio.h ] && echo "yes")
 USE_ALSA  := $(shell [ -f $(SYSROOT)/include/alsa/asoundlib.h ] || \
 	[ -f $(SYSROOT_ALT)/include/alsa/asoundlib.h ] && echo "yes")
 USE_AMR   := $(shell [ -d $(SYSROOT)/include/opencore-amrnb ] || \
+	[ -d $(SYSROOT_LOCAL)/include/opencore-amrnb ] || \
 	[ -d $(SYSROOT_ALT)/include/opencore-amrnb ] || \
 	[ -d $(SYSROOT)/local/include/amrnb ] || \
 	[ -d $(SYSROOT)/include/amrnb ] && echo "yes")
 USE_AVCODEC := $(shell [ -f $(SYSROOT)/include/libavcodec/avcodec.h ] || \
+	[ -f $(SYSROOT_LOCAL)/include/libavcodec/avcodec.h ] || \
 	[ -f $(SYSROOT)/local/include/libavcodec/avcodec.h ] || \
 	[ -f $(SYSROOT)/include/$(MACHINE)/libavcodec/avcodec.h ] || \
 	[ -f $(SYSROOT_ALT)/include/libavcodec/avcodec.h ] && echo "yes")
 USE_AVFORMAT := $(shell [ -f $(SYSROOT)/include/libavformat/avformat.h ] || \
+	[ -f $(SYSROOT_LOCAL)/include/libavformat/avformat.h ] || \
 	[ -f $(SYSROOT)/local/include/libavformat/avformat.h ] || \
 	[ -f $(SYSROOT)/include/$(MACHINE)/libavformat/avformat.h ] || \
 	[ -f $(SYSROOT_ALT)/include/libavformat/avformat.h ] && echo "yes")
 USE_AVAHI := $(shell pkg-config --exists avahi-client && echo "yes")
-USE_BV32  := $(shell [ -f $(SYSROOT)/include/bv32/bv32.h ] || \
-	[ -f $(SYSROOT)/local/include/bv32/bv32.h ] && echo "yes")
 USE_CAIRO  := $(shell [ -f $(SYSROOT)/include/cairo/cairo.h ] || \
 	[ -f $(SYSROOT)/local/include/cairo/cairo.h ] || \
 	[ -f $(SYSROOT_ALT)/include/cairo/cairo.h ] && echo "yes")
@@ -108,15 +111,13 @@ USE_GSM := $(shell [ -f $(SYSROOT)/include/gsm.h ] || \
 	[ -f $(SYSROOT)/include/gsm/gsm.h ] || \
 	[ -f $(SYSROOT)/local/include/gsm.h ] || \
 	[ -f $(SYSROOT)/local/include/gsm/gsm.h ] && echo "yes")
-USE_GST1 := $(shell pkg-config --exists gstreamer-1.0 && echo "yes")
-USE_GST_VIDEO1 := $(shell pkg-config --exists gstreamer-1.0 gstreamer-app-1.0 \
+USE_GST := $(shell pkg-config --exists gstreamer-1.0 && echo "yes")
+USE_GST_VIDEO := $(shell pkg-config --exists gstreamer-1.0 gstreamer-app-1.0 \
 		&& echo "yes")
 USE_GTK := $(shell pkg-config 'gtk+-2.0 >= 2.22' && \
 		   pkg-config 'glib-2.0 >= 2.32' && echo "yes")
-ifneq ($(USE_AVCODEC),)
-USE_H265  := yes
-endif
 USE_ILBC := $(shell [ -f $(SYSROOT)/include/iLBC_define.h ] || \
+	[ -f $(SYSROOT_LOCAL)/include/iLBC_define.h ] || \
 	[ -f $(SYSROOT)/local/include/iLBC_define.h ] && echo "yes")
 USE_ISAC := $(shell [ -f $(SYSROOT)/include/isac.h ] || \
 	[ -f $(SYSROOT)/local/include/isac.h ] && echo "yes")
@@ -159,9 +160,9 @@ HAVE_SPEEXDSP := \
 endif
 ifneq ($(USE_MPG123),)
 ifneq ($(HAVE_SPEEXDSP),)
-USE_MPA  := $(shell [ -f $(SYSROOT)/include/twolame.h ] || \
-	[ -f $(SYSROOT)/local/include/twolame.h ] || \
-	[ -f $(SYSROOT_ALT)/include/twolame.h ] && echo "yes")
+USE_MPA  := $(shell [ -f $(SYSROOT)/include/lame/lame.h ] || \
+	[ -f $(SYSROOT)/local/include/lame/lame.h ] || \
+	[ -f $(SYSROOT_ALT)/include/lame/lame.h ] && echo "yes")
 endif
 endif
 USE_SPEEX_PP := $(shell [ -f $(SYSROOT)/include/speex_preprocess.h ] || \
@@ -275,6 +276,7 @@ MODULES   += stun
 MODULES   += turn
 MODULES   += uuid
 MODULES   += vidbridge
+MODULES   += vidinfo
 MODULES   += vidloop
 MODULES   += vumeter
 
@@ -284,6 +286,9 @@ endif
 
 endif
 
+ifneq ($(USE_AAC),)
+MODULES   += aac
+endif
 ifneq ($(USE_ALSA),)
 MODULES   += alsa
 endif
@@ -305,12 +310,8 @@ endif
 ifneq ($(USE_AVAHI),)
 MODULES   += avahi
 endif
-ifneq ($(USE_BV32),)
-MODULES   += bv32
-endif
 ifneq ($(USE_CAIRO),)
 MODULES   += cairo
-MODULES   += vidinfo
 ifneq ($(USE_MPG123),)
 MODULES   += rst
 endif
@@ -352,17 +353,14 @@ endif
 ifneq ($(USE_GSM),)
 MODULES   += gsm
 endif
-ifneq ($(USE_GST1),)
-MODULES   += gst1
+ifneq ($(USE_GST),)
+MODULES   += gst
 endif
-ifneq ($(USE_GST_VIDEO1),)
-MODULES   += gst_video1
+ifneq ($(USE_GST_VIDEO),)
+MODULES   += gst_video
 endif
 ifneq ($(USE_GTK),)
 MODULES   += gtk
-endif
-ifneq ($(USE_H265),)
-MODULES   += h265
 endif
 ifneq ($(USE_ILBC),)
 MODULES   += ilbc
@@ -407,7 +405,7 @@ ifneq ($(USE_PULSE),)
 MODULES   += pulse
 endif
 ifneq ($(USE_SDL2),)
-MODULES   += sdl2
+MODULES   += sdl
 endif
 ifneq ($(USE_SNDFILE),)
 MODULES   += sndfile

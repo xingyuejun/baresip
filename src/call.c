@@ -46,7 +46,6 @@ struct call {
 	struct list streaml;      /**< List of mediastreams (struct stream) */
 	struct audio *audio;      /**< Audio stream                         */
 	struct video *video;      /**< Video stream                         */
-	struct bfcp *bfcp;        /**< BFCP Client                          */
 	enum state state;         /**< Call state                           */
 	char *local_uri;          /**< Local SIP uri                        */
 	char *local_name;         /**< Local display name                   */
@@ -215,13 +214,6 @@ static void call_stream_start(struct call *call, bool active)
 		err = start_video(call);
 		if (err) {
 			warning("call: could not start video: %m\n", err);
-		}
-	}
-
-	if (call->bfcp) {
-		err = bfcp_start(call->bfcp);
-		if (err) {
-			warning("call: could not start BFCP: %m\n", err);
 		}
 	}
 
@@ -449,7 +441,6 @@ static void call_destructor(void *arg)
 	mem_deref(call->peer_name);
 	mem_deref(call->audio);
 	mem_deref(call->video);
-	mem_deref(call->bfcp);
 	mem_deref(call->sdp);
 	mem_deref(call->mnats);
 	mem_deref(call->mencs);
@@ -552,6 +543,7 @@ static void menc_error_handler(int err, void *arg)
 static void stream_mnatconn_handler(struct stream *strm, void *arg)
 {
 	struct call *call = arg;
+	MAGIC_CHECK(call);
 
 	if (stream_is_ready(strm)) {
 
@@ -686,7 +678,7 @@ int call_alloc(struct call **callp, const struct config *cfg, struct list *lst,
 
 	/* Initialise media NAT handling */
 	if (acc->mnat) {
-		err = acc->mnat->sessh(&call->mnats,
+		err = acc->mnat->sessh(&call->mnats, acc->mnat,
 				       dnsc, call->af,
 				       acc->stun_host, acc->stun_port,
 				       acc->stun_user, acc->stun_pass,
@@ -714,7 +706,7 @@ int call_alloc(struct call **callp, const struct config *cfg, struct list *lst,
 	}
 
 	/* Audio stream */
-	err = audio_alloc(&call->audio, &stream_prm, cfg, call,
+	err = audio_alloc(&call->audio, &call->streaml, &stream_prm, cfg, call,
 			  call->sdp, ++label,
 			  acc->mnat, call->mnats, acc->menc, call->mencs,
 			  acc->ptime, account_aucodecl(call->acc), !got_offer,
@@ -733,25 +725,18 @@ int call_alloc(struct call **callp, const struct config *cfg, struct list *lst,
 
 	/* Video stream */
 	if (use_video) {
-		err = video_alloc(&call->video, &stream_prm, cfg,
+		err = video_alloc(&call->video, &call->streaml,
+				  &stream_prm, cfg,
 				  call, call->sdp, ++label,
 				  acc->mnat, call->mnats,
 				  acc->menc, call->mencs,
 				  "main",
-				  account_vidcodecl(call->acc), !got_offer,
+				  account_vidcodecl(call->acc),
+				  baresip_vidfiltl(), !got_offer,
 				  video_error_handler, call);
 		if (err)
 			goto out;
  	}
-
-	if (str_isset(cfg->bfcp.proto)) {
-
-		err = bfcp_alloc(&call->bfcp, call->sdp,
-				 cfg->bfcp.proto, !got_offer,
-				 acc->mnat, call->mnats);
-		if (err)
-			goto out;
-	}
 
 	/* inherit certain properties from original call */
 	if (xcall) {
@@ -760,8 +745,8 @@ int call_alloc(struct call **callp, const struct config *cfg, struct list *lst,
 
 	FOREACH_STREAM {
 		struct stream *strm = le->data;
-		stream_set_error_handler(strm, stream_mnatconn_handler,
-					 stream_error_handler, call);
+		stream_set_session_handlers(strm, stream_mnatconn_handler,
+					    stream_error_handler, call);
 	}
 
 	if (cfg->avt.rtp_timeout) {
@@ -2087,7 +2072,7 @@ void call_set_xrtpstat(struct call *call)
 
 	sipsess_set_close_headers(call->sess,
 				  "X-RTP-Stat: %H\r\n",
-				  audio_print_rtpstat, call->audio);
+				  rtpstat_print, call);
 }
 
 

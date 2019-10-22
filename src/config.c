@@ -43,7 +43,6 @@ static struct config core_config = {
 		0,
 		0,
 		0,
-		false,
 		AUDIO_MODE_POLL,
 		false,
 		AUFMT_S16LE,
@@ -80,11 +79,6 @@ static struct config core_config = {
 		"",
 		{ {""} },
 		0
-	},
-
-	/* BFCP */
-	{
-		""
 	},
 
 	/* SDP */
@@ -203,7 +197,7 @@ static int conf_get_vidfmt(const struct conf *conf, const char *name,
  */
 int config_parse_conf(struct config *cfg, const struct conf *conf)
 {
-	struct pl pollm, as, ap;
+	struct pl pollm;
 	enum poll_method method;
 	struct vidsz size = {0, 0};
 	struct pl txmode;
@@ -264,10 +258,6 @@ int config_parse_conf(struct config *cfg, const struct conf *conf)
 	(void)conf_get_u32(conf, "auplay_srate", &cfg->audio.srate_play);
 	(void)conf_get_u32(conf, "ausrc_channels", &cfg->audio.channels_src);
 	(void)conf_get_u32(conf, "auplay_channels", &cfg->audio.channels_play);
-
-	if (0 == conf_get(conf, "audio_source", &as) &&
-	    0 == conf_get(conf, "audio_player", &ap))
-		cfg->audio.src_first = as.p < ap.p;
 
 	if (0 == conf_get(conf, "audio_txmode", &txmode)) {
 
@@ -331,10 +321,6 @@ int config_parse_conf(struct config *cfg, const struct conf *conf)
 	(void)conf_apply(conf, "dns_server", dns_server_handler, &cfg->net);
 	(void)conf_get_str(conf, "net_interface",
 			   cfg->net.ifname, sizeof(cfg->net.ifname));
-
-	/* BFCP */
-	(void)conf_get_str(conf, "bfcp_proto", cfg->bfcp.proto,
-			   sizeof(cfg->bfcp.proto));
 
 	/* SDP */
 	(void)conf_get_bool(conf, "sdp_ebuacip", &cfg->sdp.ebuacip);
@@ -402,9 +388,6 @@ int config_print(struct re_printf *pf, const struct config *cfg)
 			 "net_prefer_ipv6\t\t%s\n"
 			 "net_interface\t\t%s\n"
 			 "\n"
-			 "# BFCP\n"
-			 "bfcp_proto\t\t%s\n"
-			 "\n"
 			 ,
 
 			 cfg->sip.local, cfg->sip.cert, cfg->sip.cafile,
@@ -437,8 +420,6 @@ int config_print(struct re_printf *pf, const struct config *cfg)
 
 			 cfg->net.prefer_ipv6 ? "yes" : "no",
 			 cfg->net.ifname
-
-			 ,cfg->bfcp.proto
 		   );
 
 	return err;
@@ -496,7 +477,7 @@ static const char *default_video_display(void)
 #ifdef DARWIN
 	return "sdl,nil";
 #elif defined (WIN32)
-	return "sdl2,nil";
+	return "sdl,nil";
 #else
 	return "x11,nil";
 #endif
@@ -616,10 +597,6 @@ static int core_config_template(struct re_printf *pf, const struct config *cfg)
 			  "#net_interface\t\t%H\n",
 			  cfg->avt.jbuf_del.min, cfg->avt.jbuf_del.max,
 			  default_interface_print, NULL);
-
-	err |= re_hprintf(pf,
-			  "\n# BFCP\n"
-			  "#bfcp_proto\t\tudp\n");
 
 	return err;
 }
@@ -753,7 +730,6 @@ int config_write_template(const char *file, const struct config *cfg)
 	(void)re_fprintf(f, "module\t\t\t" "g711" MOD_EXT "\n");
 	(void)re_fprintf(f, "#module\t\t\t" "gsm" MOD_EXT "\n");
 	(void)re_fprintf(f, "#module\t\t\t" "l16" MOD_EXT "\n");
-	(void)re_fprintf(f, "#module\t\t\t" "bv32" MOD_EXT "\n");
 	(void)re_fprintf(f, "#module\t\t\t" "mpa" MOD_EXT "\n");
 	(void)re_fprintf(f, "#module\t\t\t" "codec2" MOD_EXT "\n");
 	(void)re_fprintf(f, "#module\t\t\t" "ilbc" MOD_EXT "\n");
@@ -792,7 +768,6 @@ int config_write_template(const char *file, const struct config *cfg)
 	(void)re_fprintf(f, "#module\t\t\t" "avcodec" MOD_EXT "\n");
 	(void)re_fprintf(f, "#module\t\t\t" "vp8" MOD_EXT "\n");
 	(void)re_fprintf(f, "#module\t\t\t" "vp9" MOD_EXT "\n");
-	(void)re_fprintf(f, "#module\t\t\t" "h265" MOD_EXT "\n");
 
 	(void)re_fprintf(f, "\n# Video filter Modules (in encoding order)\n");
 	(void)re_fprintf(f, "#module\t\t\t" "selfview" MOD_EXT "\n");
@@ -822,21 +797,18 @@ int config_write_template(const char *file, const struct config *cfg)
 	(void)re_fprintf(f, "#module\t\t\t" "vidbridge" MOD_EXT "\n");
 
 	(void)re_fprintf(f, "\n# Video display modules\n");
-#ifdef DARWIN
-	(void)re_fprintf(f, "#module\t\t\t" "opengl" MOD_EXT "\n");
-#endif
 #ifdef LINUX
 	(void)re_fprintf(f, "#module\t\t\t" "directfb" MOD_EXT "\n");
 #endif
 	(void)re_fprintf(f, "#module\t\t\t" "x11" MOD_EXT "\n");
-	(void)re_fprintf(f, "#module\t\t\t" "sdl2" MOD_EXT "\n");
+	(void)re_fprintf(f, "#module\t\t\t" "sdl" MOD_EXT "\n");
 	(void)re_fprintf(f, "#module\t\t\t" "fakevideo" MOD_EXT "\n");
 
 
 	(void)re_fprintf(f, "\n# Audio/Video source modules\n");
 	(void)re_fprintf(f, "#module\t\t\t" "rst" MOD_EXT "\n");
-	(void)re_fprintf(f, "#module\t\t\t" "gst1" MOD_EXT "\n");
-	(void)re_fprintf(f, "#module\t\t\t" "gst_video1" MOD_EXT "\n");
+	(void)re_fprintf(f, "#module\t\t\t" "gst" MOD_EXT "\n");
+	(void)re_fprintf(f, "#module\t\t\t" "gst_video" MOD_EXT "\n");
 
 	(void)re_fprintf(f, "\n# Media NAT modules\n");
 	(void)re_fprintf(f, "module\t\t\t" "stun" MOD_EXT "\n");
@@ -931,8 +903,7 @@ int config_write_template(const char *file, const struct config *cfg)
 			"\n# ICE\n"
 			"ice_turn\t\tno\n"
 			"ice_debug\t\tno\n"
-			"ice_nomination\t\tregular\t# {regular,aggressive}\n"
-			"ice_mode\t\tfull\t# {full,lite}\n");
+			"ice_nomination\t\tregular\t# {regular,aggressive}\n");
 
 	(void)re_fprintf(f,
 			"\n# ZRTP\n"
@@ -951,13 +922,23 @@ int config_write_template(const char *file, const struct config *cfg)
 			"\n# avcodec\n"
 			"#avcodec_h264enc\tlibx264\n"
 			"#avcodec_h264dec\th264\n"
+			"#avcodec_h265enc\tlibx265\n"
+			"#avcodec_h265dec\thevc\n"
 			"#avcodec_hwaccel\t%s\n",
 			default_avcodec_hwaccel());
 
 	(void)re_fprintf(f,
-			"\n# h265\n"
-			"#h265_encoder\t\tlibx265\n"
-			"#h265_decoder\t\thevc\n");
+			 "\n# mqtt\n"
+			 "#mqtt_broker_host\t127.0.0.1\n"
+			 "#mqtt_broker_port\t1883\n"
+			 "#mqtt_broker_clientid\tbaresip01\n"
+			 "#mqtt_broker_user\tuser\n"
+			 "#mqtt_broker_password\tpass\n"
+			 "#mqtt_basetopic\t\tbaresip/01\n");
+
+	(void)re_fprintf(f,
+			 "\n# sndfile\n"
+			 "#snd_path\t\t/tmp\n");
 
 	if (f)
 		(void)fclose(f);

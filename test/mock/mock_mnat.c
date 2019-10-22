@@ -52,7 +52,8 @@ static void tmr_handler(void *data)
 }
 
 
-static int mnat_session_alloc(struct mnat_sess **sessp, struct dnsc *dnsc,
+static int mnat_session_alloc(struct mnat_sess **sessp,
+			      const struct mnat *mnat, struct dnsc *dnsc,
 			      int af, const char *srv, uint16_t port,
 			      const char *user, const char *pass,
 			      struct sdp_session *sdp, bool offerer,
@@ -69,7 +70,7 @@ static int mnat_session_alloc(struct mnat_sess **sessp, struct dnsc *dnsc,
 	(void)sdp;
 	(void)offerer;
 
-	if (!sessp)
+	if (!sessp || !mnat)
 		return EINVAL;
 
 	sess = mem_zalloc(sizeof(*sess), sess_destructor);
@@ -158,17 +159,16 @@ static int mnat_session_update(struct mnat_sess *sess)
 
 static struct mnat mnat_mock = {
 	.id      = "XNAT",
+	.wait_connected = true,
 	.sessh   = mnat_session_alloc,
 	.mediah  = mnat_media_alloc,
 	.updateh = mnat_session_update,
 };
 
 
-int mock_mnat_register(struct list *mnatl)
+void mock_mnat_register(struct list *mnatl)
 {
 	mnat_register(mnatl, &mnat_mock);
-
-	return 0;
 }
 
 

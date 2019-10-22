@@ -92,9 +92,8 @@ static void stream_close(struct stream *strm, int err)
 	strm->terminated = true;
 	strm->errorh = NULL;
 
-	if (errorh) {
-		errorh(strm, err, strm->errorh_arg);
-	}
+	if (errorh)
+		errorh(strm, err, strm->sess_arg);
 }
 
 
@@ -404,7 +403,9 @@ static int start_mediaenc(struct stream *strm)
 
 	if (strm->menc && strm->menc->mediah) {
 
-		info("stream: starting mediaenc '%s'\n", strm->menc->id);
+		info("stream: %s: starting mediaenc '%s' (wait_secure=%d)\n",
+		     media_name(strm->type), strm->menc->id,
+		     strm->menc->wait_secure);
 
 		err = strm->menc->mediah(&strm->mes, strm->mencs, strm->rtp,
 					 rtp_sock(strm->rtp),
@@ -428,7 +429,8 @@ static void mnat_connected_handler(const struct sa *raddr1,
 	struct stream *strm = arg;
 	int err;
 
-	info("stream: mnat connected: raddr %J %J\n", raddr1, raddr2);
+	info("stream: mnat '%s' connected: raddr %J %J\n",
+	     strm->mnat->id, raddr1, raddr2);
 
 	strm->raddr_rtp = *raddr1;
 
@@ -449,12 +451,13 @@ static void mnat_connected_handler(const struct sa *raddr1,
 		stream_start(strm);
 
 		if (strm->mnatconnh)
-			strm->mnatconnh(strm, strm->errorh_arg);
+			strm->mnatconnh(strm, strm->sess_arg);
 	}
 }
 
 
-int stream_alloc(struct stream **sp, const struct stream_param *prm,
+int stream_alloc(struct stream **sp, struct list *streaml,
+		 const struct stream_param *prm,
 		 const struct config_avt *cfg,
 		 struct call *call, struct sdp_session *sdp_sess,
 		 enum media_type type, int label,
@@ -550,12 +553,9 @@ int stream_alloc(struct stream **sp, const struct stream_param *prm,
 		s->menc  = menc;
 		s->mencs = mem_ref(menc_sess);
 
-		if (mnat_ready(s)) {
-
-			err = start_mediaenc(s);
-			if (err)
-				goto out;
-		}
+		err = start_mediaenc(s);
+		if (err)
+			goto out;
 	}
 
 	if (err)
@@ -566,7 +566,7 @@ int stream_alloc(struct stream **sp, const struct stream_param *prm,
 	metric_init(&s->metric_tx);
 	metric_init(&s->metric_rx);
 
-	list_append(call_streaml(call), &s->le, s);
+	list_append(streaml, &s->le, s);
 
  out:
 	if (err)
@@ -808,16 +808,16 @@ void stream_enable_rtp_timeout(struct stream *strm, uint32_t timeout_ms)
 }
 
 
-void stream_set_error_handler(struct stream *strm,
-			      stream_mnatconn_h *mnatconnh,
-			      stream_error_h *errorh, void *arg)
+void stream_set_session_handlers(struct stream *strm,
+				 stream_mnatconn_h *mnatconnh,
+				 stream_error_h *errorh, void *arg)
 {
 	if (!strm)
 		return;
 
 	strm->mnatconnh  = mnatconnh;
 	strm->errorh     = errorh;
-	strm->errorh_arg = arg;
+	strm->sess_arg   = arg;
 }
 
 

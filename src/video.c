@@ -850,12 +850,14 @@ static int vrx_print_pipeline(struct re_printf *pf, const struct vrx *vrx)
 }
 
 
-int video_alloc(struct video **vp, const struct stream_param *stream_prm,
+int video_alloc(struct video **vp, struct list *streaml,
+		const struct stream_param *stream_prm,
 		const struct config *cfg,
 		struct call *call, struct sdp_session *sdp_sess, int label,
 		const struct mnat *mnat, struct mnat_sess *mnat_sess,
 		const struct menc *menc, struct menc_sess *menc_sess,
 		const char *content, const struct list *vidcodecl,
+		const struct list *vidfiltl,
 		bool offerer,
 		video_err_h *errh, void *arg)
 {
@@ -875,7 +877,7 @@ int video_alloc(struct video **vp, const struct stream_param *stream_prm,
 	v->cfg = cfg->video;
 	tmr_init(&v->tmr);
 
-	err = stream_alloc(&v->strm, stream_prm,
+	err = stream_alloc(&v->strm, streaml, stream_prm,
 			   &cfg->avt, call, sdp_sess, MEDIA_VIDEO, label,
 			   mnat, mnat_sess, menc, menc_sess, offerer,
 			   stream_recv_handler, rtcp_handler, v);
@@ -884,6 +886,8 @@ int video_alloc(struct video **vp, const struct stream_param *stream_prm,
 
 	if (vidisp_find(baresip_vidispl(), NULL) == NULL)
 		sdp_media_set_ldir(v->strm->sdp, SDP_SENDONLY);
+
+	stream_set_srate(v->strm, VIDEO_SRATE, VIDEO_SRATE);
 
 	if (cfg->avt.rtp_bw.max >= AUDIO_BANDWIDTH) {
 		stream_set_bw(v->strm, cfg->avt.rtp_bw.max - AUDIO_BANDWIDTH);
@@ -923,7 +927,7 @@ int video_alloc(struct video **vp, const struct stream_param *stream_prm,
 	}
 
 	/* Video filters */
-	for (le = list_head(baresip_vidfiltl()); le; le = le->next) {
+	for (le = list_head(vidfiltl); le; le = le->next) {
 		struct vidfilt *vf = le->data;
 		struct vidfilt_prm prm;
 		void *ctx = NULL;
@@ -1045,13 +1049,11 @@ int video_start(struct video *v, const char *peer)
 		return EINVAL;
 
 	if (peer) {
-		mem_deref(v->peer);
+		v->peer = mem_deref(v->peer);
 		err = str_dup(&v->peer, peer);
 		if (err)
 			return err;
 	}
-
-	stream_set_srate(v->strm, VIDEO_SRATE, VIDEO_SRATE);
 
 	if (vidisp_find(baresip_vidispl(), NULL)) {
 		err = set_vidisp(&v->vrx);
@@ -1237,7 +1239,7 @@ int video_decoder_set(struct video *v, struct vidcodec *vc, int pt_rx,
 
 	/* handle vidcodecs without a decoder */
 	if (!vc->decupdh) {
-		struct list *vidcodecl = baresip_vidcodecl();
+		struct list *vidcodecl = vc->le.list;
 		struct vidcodec *vcd;
 
 		info("video: vidcodec '%s' has no decoder\n", vc->name);
@@ -1412,10 +1414,10 @@ int video_debug(struct re_printf *pf, const struct video *v)
 	if (err)
 		return err;
 
-	if (!list_isempty(baresip_vidfiltl())) {
+	if (!list_isempty(&vtx->filtl))
 		err |= vtx_print_pipeline(pf, vtx);
+	if (!list_isempty(&vrx->filtl))
 		err |= vrx_print_pipeline(pf, vrx);
-	}
 
 	err |= stream_debug(pf, v->strm);
 
@@ -1477,4 +1479,13 @@ void video_set_devicename(struct video *v, const char *src, const char *disp)
 
 	str_ncpy(v->vtx.device, src, sizeof(v->vtx.device));
 	str_ncpy(v->vrx.device, disp, sizeof(v->vrx.device));
+}
+
+
+const struct vidcodec *video_codec(const struct video *vid, bool tx)
+{
+	if (!vid)
+		return NULL;
+
+	return tx ? vid->vtx.vc : vid->vrx.vc;
 }

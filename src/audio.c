@@ -89,7 +89,8 @@ struct autx {
 	struct auresamp resamp;       /**< Optional resampler for DSP      */
 	struct list filtl;            /**< Audio filters in encoding order */
 	struct mbuf *mb;              /**< Buffer for outgoing RTP packets */
-	char device[128];             /**< Audio source device name        */
+	char *module;                 /**< Audio source module name        */
+	char *device;                 /**< Audio source device name        */
 	void *sampv;                  /**< Sample buffer                   */
 	int16_t *sampv_rs;            /**< Sample buffer for resampler     */
 	uint32_t ptime;               /**< Packet time for sending         */
@@ -145,7 +146,8 @@ struct aurx {
 	volatile bool aubuf_started;  /**< Aubuf was started flag          */
 	struct auresamp resamp;       /**< Optional resampler for DSP      */
 	struct list filtl;            /**< Audio filters in decoding order */
-	char device[128];             /**< Audio player device name        */
+	char *module;                 /**< Audio player module name        */
+	char *device;                 /**< Audio player device name        */
 	void *sampv;                  /**< Sample buffer                   */
 	int16_t *sampv_rs;            /**< Sample buffer for resampler     */
 	uint32_t ptime;               /**< Packet time for receiving       */
@@ -272,6 +274,10 @@ static void audio_destructor(void *arg)
 	mem_deref(a->rx.aubuf);
 	mem_deref(a->tx.sampv_rs);
 	mem_deref(a->rx.sampv_rs);
+	mem_deref(a->tx.module);
+	mem_deref(a->tx.device);
+	mem_deref(a->rx.module);
+	mem_deref(a->rx.device);
 
 	list_flush(&a->tx.filtl);
 	list_flush(&a->rx.filtl);
@@ -1113,7 +1119,8 @@ static bool ebuacip_handler(const char *name, const char *value, void *arg)
  *
  * @return 0 if success, otherwise errorcode
  */
-int audio_alloc(struct audio **ap, const struct stream_param *stream_prm,
+int audio_alloc(struct audio **ap, struct list *streaml,
+		const struct stream_param *stream_prm,
 		const struct config *cfg,
 		struct call *call, struct sdp_session *sdp_sess, int label,
 		const struct mnat *mnat, struct mnat_sess *mnat_sess,
@@ -1121,6 +1128,7 @@ int audio_alloc(struct audio **ap, const struct stream_param *stream_prm,
 		uint32_t ptime, const struct list *aucodecl, bool offerer,
 		audio_event_h *eventh, audio_err_h *errh, void *arg)
 {
+	struct account *acc;
 	struct audio *a;
 	struct autx *tx;
 	struct aurx *rx;
@@ -1152,7 +1160,8 @@ int audio_alloc(struct audio **ap, const struct stream_param *stream_prm,
 	tx->enc_fmt = cfg->audio.enc_fmt;
 	rx->dec_fmt = cfg->audio.dec_fmt;
 
-	err = stream_alloc(&a->strm, stream_prm, &cfg->avt, call, sdp_sess,
+	err = stream_alloc(&a->strm, streaml,
+			   stream_prm, &cfg->avt, call, sdp_sess,
 			   MEDIA_AUDIO, label,
 			   mnat, mnat_sess, menc, menc_sess, offerer,
 			   stream_recv_handler, NULL, a);
@@ -1214,13 +1223,40 @@ int audio_alloc(struct audio **ap, const struct stream_param *stream_prm,
 		goto out;
 
 	auresamp_init(&tx->resamp);
-	str_ncpy(tx->device, a->cfg.src_dev, sizeof(tx->device));
+
+	acc = call_account(call);
+	if (acc && acc->ausrc_mod) {
+
+		tx->module = mem_ref(acc->ausrc_mod);
+		tx->device = mem_ref(acc->ausrc_dev);
+
+		info("audio: using account specific source: (%s,%s)\n",
+		     tx->module, tx->device);
+	}
+	else {
+		err  = str_dup(&tx->module, a->cfg.src_mod);
+		err |= str_dup(&tx->device, a->cfg.src_dev);
+	}
+
 	tx->ptime  = ptime;
 	tx->ts_ext = tx->ts_base = rand_u16();
 	tx->marker = true;
 
 	auresamp_init(&rx->resamp);
-	str_ncpy(rx->device, a->cfg.play_dev, sizeof(rx->device));
+
+	if (acc && acc->auplay_mod) {
+
+		rx->module = mem_ref(acc->auplay_mod);
+		rx->device = mem_ref(acc->auplay_dev);
+
+		info("audio: using account specific player: (%s,%s)\n",
+		     rx->module, rx->device);
+	}
+	else {
+		err  = str_dup(&rx->module, a->cfg.play_mod);
+		err |= str_dup(&rx->device, a->cfg.play_dev);
+	}
+
 	rx->pt     = -1;
 	rx->ptime  = ptime;
 
@@ -1303,7 +1339,7 @@ static int autx_print_pipeline(struct re_printf *pf, const struct autx *autx)
 		return 0;
 
 	err = re_hprintf(pf, "audio tx pipeline:  %10s",
-			 autx->ausrc ? autx->ausrc->as->name : "src");
+			 autx->ausrc ? autx->ausrc->as->name : "(src)");
 
 	for (le = list_head(&autx->filtl); le; le = le->next) {
 		struct aufilt_enc_st *st = le->data;
@@ -1313,7 +1349,7 @@ static int autx_print_pipeline(struct re_printf *pf, const struct autx *autx)
 	}
 
 	err |= re_hprintf(pf, " ---> %s\n",
-			  autx->ac ? autx->ac->name : "encoder");
+			  autx->ac ? autx->ac->name : "(encoder)");
 
 	return err;
 }
@@ -1328,7 +1364,7 @@ static int aurx_print_pipeline(struct re_printf *pf, const struct aurx *aurx)
 		return 0;
 
 	err = re_hprintf(pf, "audio rx pipeline:  %10s",
-			 aurx->auplay ? aurx->auplay->ap->name : "play");
+			 aurx->auplay ? aurx->auplay->ap->name : "(play)");
 
 	for (le = list_head(&aurx->filtl); le; le = le->next) {
 		struct aufilt_dec_st *st = le->data;
@@ -1338,7 +1374,7 @@ static int aurx_print_pipeline(struct re_printf *pf, const struct aurx *aurx)
 	}
 
 	err |= re_hprintf(pf, " <--- %s\n",
-			  aurx->ac ? aurx->ac->name : "decoder");
+			  aurx->ac ? aurx->ac->name : "(decoder)");
 
 	return err;
 }
@@ -1483,12 +1519,12 @@ static int start_player(struct aurx *rx, struct audio *a)
 		}
 
 		err = auplay_alloc(&rx->auplay, baresip_auplayl(),
-				   a->cfg.play_mod,
+				   rx->module,
 				   &prm, rx->device,
 				   auplay_write_handler, rx);
 		if (err) {
 			warning("audio: start_player failed (%s.%s): %m\n",
-				a->cfg.play_mod, rx->device, err);
+				rx->module, rx->device, err);
 			return err;
 		}
 
@@ -1572,12 +1608,12 @@ static int start_source(struct autx *tx, struct audio *a)
 		}
 
 		err = ausrc_alloc(&tx->ausrc, baresip_ausrcl(),
-				  NULL, a->cfg.src_mod,
+				  NULL, tx->module,
 				  &prm, tx->device,
 				  ausrc_read_handler, ausrc_error_handler, a);
 		if (err) {
 			warning("audio: start_source failed (%s.%s): %m\n",
-				a->cfg.src_mod, tx->device, err);
+				tx->module, tx->device, err);
 			return err;
 		}
 
@@ -1593,7 +1629,7 @@ static int start_source(struct autx *tx, struct audio *a)
 				err = pthread_create(&tx->u.thr.tid, NULL,
 						     tx_thread, a);
 				if (err) {
-					tx->u.thr.tid = false;
+					tx->u.thr.run = false;
 					return err;
 				}
 			}
@@ -1639,15 +1675,8 @@ int audio_start(struct audio *a)
 			return err;
 	}
 
-	/* configurable order of play/src start */
-	if (a->cfg.src_first) {
-		err  = start_source(&a->tx, a);
-		err |= start_player(&a->rx, a);
-	}
-	else {
-		err  = start_player(&a->rx, a);
-		err |= start_source(&a->tx, a);
-	}
+	err  = start_player(&a->rx, a);
+	err |= start_source(&a->tx, a);
 	if (err)
 		return err;
 
@@ -2129,14 +2158,23 @@ int audio_debug(struct re_printf *pf, const struct audio *a)
  * @param a     Audio object
  * @param src   Audio source device name
  * @param play  Audio player device name
+ *
+ * @return 0 if success, otherwise errorcode
  */
-void audio_set_devicename(struct audio *a, const char *src, const char *play)
+int audio_set_devicename(struct audio *a, const char *src, const char *play)
 {
-	if (!a)
-		return;
+	int err;
 
-	str_ncpy(a->tx.device, src, sizeof(a->tx.device));
-	str_ncpy(a->rx.device, play, sizeof(a->rx.device));
+	if (!a)
+		return EINVAL;
+
+	a->tx.device = mem_deref(a->tx.device);
+	a->rx.device = mem_deref(a->rx.device);
+
+	err  = str_dup(&a->tx.device, src);
+	err |= str_dup(&a->rx.device, play);
+
+	return err;
 }
 
 
@@ -2215,72 +2253,6 @@ int audio_set_player(struct audio *au, const char *mod, const char *device)
 	}
 
 	return 0;
-}
-
-
-/*
- * Reference:
- *
- * https://www.avm.de/de/Extern/files/x-rtp/xrtpv32.pdf
- */
-int audio_print_rtpstat(struct re_printf *pf, const struct audio *a)
-{
-	const struct stream *s;
-	const struct rtcp_stats *rtcp;
-	int srate_tx = 8000;
-	int srate_rx = 8000;
-	int err;
-
-	if (!a)
-		return 1;
-
-	s = a->strm;
-	rtcp = &s->rtcp_stats;
-
-	if (!rtcp->tx.sent)
-		return 1;
-
-	if (a->tx.ac)
-		srate_tx = a->tx.ac->srate;
-	if (a->rx.ac)
-		srate_rx = a->rx.ac->srate;
-
-	err = re_hprintf(pf,
-			 "EX=BareSip;"   /* Reporter Identifier	             */
-			 "CS=%d;"        /* Call Setup in milliseconds       */
-			 "CD=%d;"        /* Call Duration in seconds	     */
-			 "PR=%u;PS=%u;"  /* Packets RX, TX                   */
-			 "PL=%d,%d;"     /* Packets Lost RX, TX              */
-			 "PD=%d,%d;"     /* Packets Discarded, RX, TX        */
-			 "JI=%.1f,%.1f;" /* Jitter RX, TX in timestamp units */
-			 "IP=%J,%J"      /* Local, Remote IPs                */
-			 ,
-			 call_setup_duration(s->call) * 1000,
-			 call_duration(s->call),
-
-			 s->metric_rx.n_packets,
-			 s->metric_tx.n_packets,
-
-			 rtcp->rx.lost, rtcp->tx.lost,
-
-			 s->metric_rx.n_err, s->metric_tx.n_err,
-
-			 /* timestamp units (ie: 8 ts units = 1 ms @ 8KHZ) */
-			 1.0 * rtcp->rx.jit/1000 * (srate_rx/1000),
-			 1.0 * rtcp->tx.jit/1000 * (srate_tx/1000),
-
-			 sdp_media_laddr(s->sdp),
-			 sdp_media_raddr(s->sdp)
-			 );
-
-	if (a->tx.ac) {
-		err |= re_hprintf(pf, ";EN=%s/%d", a->tx.ac->name, srate_tx );
-	}
-	if (a->rx.ac) {
-		err |= re_hprintf(pf, ";DE=%s/%d", a->rx.ac->name, srate_rx );
-	}
-
-	return err;
 }
 
 

@@ -76,6 +76,11 @@ struct account {
 	struct list vidcodecl;       /**< List of preferred video-codecs     */
 	bool mwi;                    /**< MWI on/off                         */
 	bool refer;                  /**< REFER method on/off                */
+	char *ausrc_mod;
+	char *ausrc_dev;
+	char *auplay_mod;
+	char *auplay_dev;
+	char *extra;                 /**< Extra parameters                   */
 };
 
 
@@ -105,18 +110,6 @@ struct audio;
 
 int  audio_send_digit(struct audio *a, char key);
 void audio_sdp_attr_decode(struct audio *a);
-int  audio_print_rtpstat(struct re_printf *pf, const struct audio *au);
-
-
-/*
- * BFCP
- */
-
-struct bfcp;
-int bfcp_alloc(struct bfcp **bfcpp, struct sdp_session *sdp_sess,
-	       const char *proto, bool offerer,
-	       const struct mnat *mnat, struct mnat_sess *mnat_sess);
-int bfcp_start(struct bfcp *bfcp);
 
 
 /*
@@ -182,13 +175,6 @@ int conf_get_float(const struct conf *conf, const char *name, double *val);
  */
 
 int mctrl_handle_media_control(struct pl *body, bool *pfu);
-
-
-/*
- * Media NAT traversal
- */
-
-const struct mnat *mnat_find(const struct list *mnatl, const char *id);
 
 
 /*
@@ -271,6 +257,13 @@ int rtpext_decode(struct rtpext *ext, struct mbuf *mb);
 
 
 /*
+ * RTP Stats
+ */
+
+int rtpstat_print(struct re_printf *pf, const struct call *call);
+
+
+/*
  * SDP
  */
 
@@ -338,12 +331,13 @@ struct stream {
 	stream_rtp_h *rtph;      /**< Stream RTP handler                    */
 	stream_rtcp_h *rtcph;    /**< Stream RTCP handler                   */
 	void *arg;               /**< Handler argument                      */
-	stream_mnatconn_h *mnatconnh;
+	stream_mnatconn_h *mnatconnh;/**< Medianat connected handler        */
 	stream_error_h *errorh;  /**< Stream error handler                  */
-	void *errorh_arg;        /**< Error handler argument                */
+	void *sess_arg;          /**< Session handlers argument             */
 };
 
-int  stream_alloc(struct stream **sp, const struct stream_param *prm,
+int  stream_alloc(struct stream **sp, struct list *streaml,
+		  const struct stream_param *prm,
 		  const struct config_avt *cfg,
 		  struct call *call, struct sdp_session *sdp_sess,
 		  enum media_type type, int label,
@@ -360,9 +354,9 @@ void stream_set_srate(struct stream *s, uint32_t srate_tx, uint32_t srate_rx);
 void stream_send_fir(struct stream *s, bool pli);
 void stream_reset(struct stream *s);
 void stream_set_bw(struct stream *s, uint32_t bps);
-void stream_set_error_handler(struct stream *strm,
-			      stream_mnatconn_h *mnatconnh,
-			      stream_error_h *errorh, void *arg);
+void stream_set_session_handlers(struct stream *strm,
+				 stream_mnatconn_h *mnatconnh,
+				 stream_error_h *errorh, void *arg);
 int  stream_debug(struct re_printf *pf, const struct stream *s);
 int  stream_print(struct re_printf *pf, const struct stream *s);
 void stream_enable_rtp_timeout(struct stream *strm, uint32_t timeout_ms);
@@ -381,7 +375,6 @@ struct ua;
 
 void         ua_printf(const struct ua *ua, const char *fmt, ...);
 
-struct tls  *uag_tls(void);
 int ua_print_allowed(struct re_printf *pf, const struct ua *ua);
 
 
@@ -393,13 +386,14 @@ struct video;
 
 typedef void (video_err_h)(int err, const char *str, void *arg);
 
-int  video_alloc(struct video **vp, const struct stream_param *stream_prm,
+int  video_alloc(struct video **vp, struct list *streaml,
+		 const struct stream_param *stream_prm,
 		 const struct config *cfg,
 		 struct call *call, struct sdp_session *sdp_sess, int label,
 		 const struct mnat *mnat, struct mnat_sess *mnat_sess,
 		 const struct menc *menc, struct menc_sess *menc_sess,
 		 const char *content, const struct list *vidcodecl,
-		 bool offerer,
+		 const struct list *vidfiltl, bool offerer,
 		 video_err_h *errh, void *arg);
 int  video_start(struct video *v, const char *peer);
 void video_stop(struct video *v);

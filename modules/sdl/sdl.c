@@ -1,5 +1,5 @@
 /**
- * @file sdl2/sdl.c  Simple DirectMedia Layer module for SDL v2.0
+ * @file sdl/sdl.c  Simple DirectMedia Layer module for SDL v2.0
  *
  * Copyright (C) 2010 Creytiv.com
  */
@@ -11,7 +11,7 @@
 
 
 /**
- * @defgroup sdl2 sdl2
+ * @defgroup sdl sdl
  *
  * Video display using Simple DirectMedia Layer version 2 (SDL2)
  */
@@ -42,6 +42,8 @@ static uint32_t match_fmt(enum vidfmt fmt)
 	switch (fmt) {
 
 	case VID_FMT_YUV420P:	return SDL_PIXELFORMAT_IYUV;
+	case VID_FMT_YUYV422:   return SDL_PIXELFORMAT_YUY2;
+	case VID_FMT_UYVY422:   return SDL_PIXELFORMAT_UYVY;
 #if SDL_VERSION_ATLEAST(2, 0, 4)
 	case VID_FMT_NV12:	return SDL_PIXELFORMAT_NV12;
 	case VID_FMT_NV21:	return SDL_PIXELFORMAT_NV21;
@@ -136,6 +138,9 @@ static void destructor(void *arg)
 
 	tmr_cancel(&st->tmr);
 	sdl_reset(st);
+
+	/* needed to close the window */
+	SDL_PumpEvents();
 }
 
 
@@ -190,7 +195,7 @@ static int display(struct vidisp_st *st, const char *title,
 
 	format = match_fmt(frame->fmt);
 	if (format == SDL_PIXELFORMAT_UNKNOWN) {
-		warning("sdl2: pixel format not supported (%s)\n",
+		warning("sdl: pixel format not supported (%s)\n",
 			vidfmt_name(frame->fmt));
 		return ENOTSUP;
 	}
@@ -332,7 +337,7 @@ static int module_init(void)
 	int err;
 
 	if (SDL_VideoInit(NULL) < 0) {
-		warning("sdl2: unable to init Video: %s\n",
+		warning("sdl: unable to init Video: %s\n",
 			SDL_GetError());
 		return ENODEV;
 	}
@@ -356,8 +361,8 @@ static int module_close(void)
 }
 
 
-EXPORT_SYM const struct mod_export DECL_EXPORTS(sdl2) = {
-	"sdl2",
+EXPORT_SYM const struct mod_export DECL_EXPORTS(sdl) = {
+	"sdl",
 	"vidisp",
 	module_init,
 	module_close,

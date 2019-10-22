@@ -91,6 +91,7 @@ const char *account_mediaenc(const struct account *acc);
 const char *account_medianat(const struct account *acc);
 const char *account_mwi(const struct account *acc);
 const char *account_call_transfer(const struct account *acc);
+const char *account_extra(const struct account *acc);
 
 
 /*
@@ -240,7 +241,6 @@ struct config_audio {
 	uint32_t srate_src;     /**< Opt. sampling rate for source  */
 	uint32_t channels_play; /**< Opt. channels for player       */
 	uint32_t channels_src;  /**< Opt. channels for source       */
-	bool src_first;         /**< Audio source opened first      */
 	enum audio_mode txmode; /**< Audio transmit mode            */
 	bool level;             /**< Enable audio level indication  */
 	int src_fmt;            /**< Audio source sample format     */
@@ -283,11 +283,6 @@ struct config_net {
 	size_t nsc;             /**< Number of DNS nameservers      */
 };
 
-/** BFCP Configuration */
-struct config_bfcp {
-	char proto[16];         /**< BFCP Transport (optional)      */
-};
-
 /** SDP */
 struct config_sdp {
 	bool ebuacip;           /**< Enable EBU-ACIP parameters     */
@@ -307,8 +302,6 @@ struct config {
 	struct config_avt avt;
 
 	struct config_net net;
-
-	struct config_bfcp bfcp;
 
 	struct config_sdp sdp;
 };
@@ -585,9 +578,9 @@ enum menc_event {
 };
 
 
-typedef void (menc_error_h)(int err, void *arg);
-
 typedef void (menc_event_h)(enum menc_event event, const char *prm, void *arg);
+
+typedef void (menc_error_h)(int err, void *arg);
 
 typedef int  (menc_sess_h)(struct menc_sess **sessp, struct sdp_session *sdp,
 			   bool offerer, menc_event_h *eventh,
@@ -631,6 +624,7 @@ void net_change(struct network *net, uint32_t interval,
 void net_force_change(struct network *net);
 bool net_check(struct network *net);
 int  net_af(const struct network *net);
+int  net_dns_debug(struct re_printf *pf, const struct network *net);
 int  net_debug(struct re_printf *pf, const struct network *net);
 const struct sa *net_laddr_af(const struct network *net, int af);
 const char      *net_domain(const struct network *net);
@@ -750,11 +744,11 @@ int  ua_init(const char *software, bool udp, bool tcp, bool tls);
 void ua_close(void);
 void ua_stop_all(bool forced);
 void uag_set_exit_handler(ua_exit_h *exith, void *arg);
+void uag_enable_sip_trace(bool enable);
 int  uag_reset_transp(bool reg, bool reinvite);
 int  uag_event_register(ua_event_h *eh, void *arg);
 void uag_event_unregister(ua_event_h *eh);
 void uag_set_sub_handler(sip_msg_h *subh);
-int  ua_print_sip_status(struct re_printf *pf, void *unused);
 int  uag_set_extra_params(const char *eprm);
 struct ua   *uag_find(const struct pl *cuser);
 struct ua   *uag_find_aor(const char *aor);
@@ -1136,7 +1130,8 @@ struct mnat_sess;
 typedef void (audio_event_h)(int key, bool end, void *arg);
 typedef void (audio_err_h)(int err, const char *str, void *arg);
 
-int audio_alloc(struct audio **ap, const struct stream_param *stream_prm,
+int audio_alloc(struct audio **ap, struct list *streaml,
+		const struct stream_param *stream_prm,
 		const struct config *cfg,
 		struct call *call, struct sdp_session *sdp_sess, int label,
 		const struct mnat *mnat, struct mnat_sess *mnat_sess,
@@ -1145,7 +1140,7 @@ int audio_alloc(struct audio **ap, const struct stream_param *stream_prm,
 		audio_event_h *eventh, audio_err_h *errh, void *arg);
 void audio_mute(struct audio *a, bool muted);
 bool audio_ismuted(const struct audio *a);
-void audio_set_devicename(struct audio *a, const char *src, const char *play);
+int  audio_set_devicename(struct audio *a, const char *src, const char *play);
 int  audio_set_source(struct audio *au, const char *mod, const char *device);
 int  audio_set_player(struct audio *au, const char *mod, const char *device);
 int  audio_level_get(const struct audio *au, double *level);
@@ -1181,6 +1176,7 @@ double video_calc_seconds(uint64_t rtp_ts);
 struct stream *video_strm(const struct video *v);
 double video_timestamp_to_seconds(uint64_t timestamp);
 uint64_t video_calc_timebase_timestamp(uint64_t rtp_ts);
+const struct vidcodec *video_codec(const struct video *vid, bool tx);
 
 
 /*
@@ -1221,7 +1217,8 @@ typedef void (mnat_connected_h)(const struct sa *raddr1,
 				const struct sa *raddr2, void *arg);
 
 
-typedef int (mnat_sess_h)(struct mnat_sess **sessp, struct dnsc *dnsc,
+typedef int (mnat_sess_h)(struct mnat_sess **sessp,
+			  const struct mnat *mnat, struct dnsc *dnsc,
 			  int af, const char *srv, uint16_t port,
 			  const char *user, const char *pass,
 			  struct sdp_session *sdp, bool offerer,
@@ -1246,6 +1243,7 @@ struct mnat {
 
 void mnat_register(struct list *mnatl, struct mnat *mnat);
 void mnat_unregister(struct mnat *mnat);
+const struct mnat *mnat_find(const struct list *mnatl, const char *id);
 
 
 /*

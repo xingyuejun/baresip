@@ -4,11 +4,11 @@
 # Copyright (C) 2010 Creytiv.com
 #
 
-MOD		:= h265
+MOD		:= aac
 $(MOD)_SRCS	+= decode.c
 $(MOD)_SRCS	+= encode.c
-$(MOD)_SRCS	+= fmt.c
-$(MOD)_SRCS	+= h265.c
-$(MOD)_LFLAGS	+= `pkg-config --libs libavcodec libavutil`
+$(MOD)_SRCS	+= aac.c
+$(MOD)_SRCS	+= sdp.c
+$(MOD)_LFLAGS	+= -lfdk-aac -lm
 
 include mk/mod.mk

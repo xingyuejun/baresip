@@ -4,8 +4,8 @@
 # Copyright (C) 2010 Creytiv.com
 #
 
-MOD		:= bv32
-$(MOD)_SRCS	+= bv32.c
-$(MOD)_LFLAGS	+= -lbv32 -lm
+MOD		:= sdl
+$(MOD)_SRCS	+= sdl.c
+$(MOD)_LFLAGS	+= -lSDL2
 
 include mk/mod.mk

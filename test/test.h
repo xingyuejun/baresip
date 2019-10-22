@@ -125,7 +125,7 @@ int dns_server_add_srv(struct dns_server *srv, const char *name,
  * Mock Audio-codec
  */
 
-void mock_aucodec_register(void);
+void mock_aucodec_register(struct list *aucodecl);
 void mock_aucodec_unregister(void);
 
 /*
@@ -134,7 +134,7 @@ void mock_aucodec_unregister(void);
 
 struct ausrc;
 
-int mock_ausrc_register(struct ausrc **ausrcp);
+int mock_ausrc_register(struct ausrc **ausrcp, struct list *ausrcl);
 
 
 /*
@@ -145,7 +145,7 @@ struct auplay;
 
 typedef void (mock_sample_h)(const void *sampv, size_t sampc, void *arg);
 
-int mock_auplay_register(struct auplay **auplayp,
+int mock_auplay_register(struct auplay **auplayp, struct list *auplayl,
 			 mock_sample_h *sampleh, void *arg);
 
 
@@ -154,7 +154,7 @@ int mock_auplay_register(struct auplay **auplayp,
  */
 
 
-void mock_aufilt_register(void);
+void mock_aufilt_register(struct list *aufiltl);
 void mock_aufilt_unregister(void);
 
 
@@ -170,7 +170,7 @@ void mock_menc_unregister(void);
  * Mock Media NAT-traversal
  */
 
-int  mock_mnat_register(struct list *mnatl);
+void mock_mnat_register(struct list *mnatl);
 void mock_mnat_unregister(void);
 
 
@@ -229,6 +229,7 @@ int test_call_rtp_timeout(void);
 int test_call_tcp(void);
 int test_call_transfer(void);
 int test_call_video(void);
+int test_call_webrtc(void);
 int test_cmd(void);
 int test_cmd_long(void);
 int test_contact(void);

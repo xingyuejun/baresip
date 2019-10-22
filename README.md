@@ -61,10 +61,10 @@ Distributed under BSD license
   - Automatic gain control (AGC) and Noise reducation
   - Acoustic echo control (AEC)
   - Configurable audio sample format (Signed 16-bit, 24-bit, Float etc)
+  - EBU ACIP (Audio Contribution over IP) Profile
 
 * Audio-codecs:
   - AMR narrowband, AMR wideband
-  - BroadVoice32 BV32
   - Codec2
   - G.711
   - G.722
@@ -92,6 +92,7 @@ Distributed under BSD license
   - Configurable video input/output
   - Support for asymmetric video
   - Configurable video pixel format
+  - Hardware acceleration for video encoder/decoder
 
 * Video-codecs:
   - H.265
@@ -213,6 +214,7 @@ Patches can be sent via Github
 
 ## Modular Plugin Architecture:
 ```
+aac           Advanced Audio Coding (AAC) audio codec
 account       Account loader
 alsa          ALSA audio driver
 amr           Adaptive Multi-Rate (AMR) audio codec
@@ -225,7 +227,6 @@ avcapture     Video source using iOS AVFoundation video capture
 avcodec       Video codec using FFmpeg/libav libavcodec
 avformat      Video source using FFmpeg/libav libavformat
 b2bua         Back-to-Back User-Agent (B2BUA) module
-bv32          BroadVoice32 audio codec
 cairo         Cairo video source
 codec2        Codec2 low bit rate speech codec
 cons          UDP/TCP console UI driver
@@ -244,11 +245,10 @@ g722          G.722 audio codec
 g7221         G.722.1 audio codec
 g726          G.726 audio codec
 gsm           GSM audio codec
-gst1          Gstreamer 1.0 audio source
-gst_video1    Gstreamer 1.0 video codec
+gst           Gstreamer audio source
+gst_video     Gstreamer video codec
 gtk           GTK+ 2.0 UI
 gzrtp         ZRTP module using GNU ZRTP C++ library
-h265          H.265 video codec
 httpd         HTTP webserver UI-module
 ice           ICE protocol for NAT Traversal
 ilbc          iLBC audio codec
@@ -274,7 +274,7 @@ presence      Presence module
 qtcapture     Apple QTCapture video source driver
 rtcpsummary   RTCP summary module
 rst           Radio streamer using mpg123
-sdl2          Simple DirectMedia Layer v2 (SDL2) video output driver
+sdl           Simple DirectMedia Layer 2.0 (SDL) video output driver
 selfview      Video selfview module
 snapshot      Save video-stream as PNG images
 sndfile       Audio dumper using libsndfile
@@ -319,7 +319,6 @@ zrtp          ZRTP media encryption module
 * RFC 3984  RTP Payload Format for H.264 Video
 * RFC 4145  TCP-Based Media Transport in SDP
 * RFC 4240  Basic Network Media Services with SIP (partly)
-* RFC 4298  Broadvoice Speech Codecs
 * RFC 4347  Datagram Transport Layer Security
 * RFC 4568  SDP Security Descriptions for Media Streams
 * RFC 4572  Connection-Oriented Media Transport over TLS Protocol in SDP
@@ -341,6 +340,7 @@ zrtp          ZRTP media encryption module
 * RFC 5763  Framework for Establishing a SRTP Security Context Using DTLS
 * RFC 5764  DTLS Extension to Establish Keys for SRTP
 * RFC 6263  App. Mechanism for Keeping Alive NAT Associated with RTP / RTCP
+* RFC 6416  RTP Payload Format for MPEG-4 Audio/Visual Streams
 * RFC 6464  A RTP Header Extension for Client-to-Mixer Audio Level Indication
 * RFC 6716  Definition of the Opus Audio Codec
 * RFC 6886  NAT Port Mapping Protocol (NAT-PMP)

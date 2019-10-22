@@ -131,7 +131,7 @@ static int ua_print_reg_status(struct re_printf *pf, void *unused)
 
 	(void)unused;
 
-	err = re_hprintf(pf, "\n--- Useragents: %u ---\n",
+	err = re_hprintf(pf, "\n--- User Agents (%u) ---\n",
 			 list_count(uag_list()));
 
 	for (le = list_head(uag_list()); le && !err; le = le->next) {
@@ -151,7 +151,7 @@ static int cmd_set_answermode(struct re_printf *pf, void *arg)
 {
 	enum answermode mode;
 	const struct cmd_arg *carg = arg;
-	(void)pf;
+	int err;
 
 	if (0 == str_cmp(carg->prm, "manual")) {
 		mode = ANSWERMODE_MANUAL;
@@ -167,7 +167,10 @@ static int cmd_set_answermode(struct re_printf *pf, void *arg)
 		return EINVAL;
 	}
 
-	account_set_answermode(ua_account(uag_current()), mode);
+	err = account_set_answermode(ua_account(uag_current()), mode);
+	if (err)
+		return err;
+
 	(void)re_hprintf(pf, "Answer mode changed to: %s\n", carg->prm);
 
 	return 0;

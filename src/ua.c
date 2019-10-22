@@ -367,7 +367,6 @@ static void call_event_handler(struct call *call, enum call_event ev,
 			break;
 
 		case ANSWERMODE_MANUAL:
-		default:
 			ua_event(ua, UA_EVENT_CALL_INCOMING, call, peeruri);
 			break;
 		}
@@ -617,7 +616,7 @@ static int create_register_clients(struct ua *ua)
 
 	/* Register clients */
 	if (uag.cfg && str_isset(uag.cfg->uuid))
-	        add_extension(ua, "gruu");
+		add_extension(ua, "gruu");
 
 	if (0 == str_casecmp(ua->acc->sipnat, "outbound")) {
 
@@ -902,7 +901,7 @@ void ua_hangup(struct ua *ua, struct call *call,
 	(void)call_hangup(call, scode, reason);
 
 	ua_event(ua, UA_EVENT_CALL_CLOSED, call,
-	         reason ? reason : "Connection reset by user");
+		 reason ? reason : "Connection reset by user");
 
 	mem_deref(call);
 
@@ -1396,16 +1395,18 @@ static void sipsess_conn_handler(const struct sip_msg *msg, void *arg)
 
 		le = list_head(&ua->hdr_filter);
 		while (le) {
-		    const struct sip_hdr *tmp_hdr;
-		    const struct ua_xhdr_filter *filter = le->data;
+			const struct sip_hdr *tmp_hdr;
+			const struct ua_xhdr_filter *filter = le->data;
 
-		    le = le->next;
-		    tmp_hdr = sip_msg_xhdr(msg, filter->hdr_name);
+			le = le->next;
+			tmp_hdr = sip_msg_xhdr(msg, filter->hdr_name);
 
-		    if (tmp_hdr) {
-		        char name[256];
-		        pl_strcpy(&tmp_hdr->name, name, sizeof(name));
-		        if (custom_hdrs_add(&hdrs, name, "%r", &tmp_hdr->val))
+			if (tmp_hdr) {
+				char name[256];
+
+				pl_strcpy(&tmp_hdr->name, name, sizeof(name));
+				if (custom_hdrs_add(&hdrs, name,
+						    "%r", &tmp_hdr->val))
 					goto error;
 			}
 		}
@@ -1492,6 +1493,24 @@ static bool sub_handler(const struct sip_msg *msg, void *arg)
 
 	return true;
 }
+
+
+#ifdef LIBRE_HAVE_SIPTRACE
+static void sip_trace_handler(bool tx, enum sip_transp tp,
+			      const struct sa *src, const struct sa *dst,
+			      const uint8_t *pkt, size_t len, void *arg)
+{
+	(void)arg;
+
+	re_printf("\x1b[36;1m"
+		  "#\n"
+		  "%s %J -> %J\n"
+		  "%b"
+		  "\x1b[;m\n"
+		  ,
+		  sip_transp_name(tp), src, dst, pkt, len);
+}
+#endif
 
 
 /**
@@ -1632,6 +1651,17 @@ void uag_set_exit_handler(ua_exit_h *exith, void *arg)
 }
 
 
+void uag_enable_sip_trace(bool enable)
+{
+#ifdef LIBRE_HAVE_SIPTRACE
+	sip_set_trace_handler(uag.sip, enable ? sip_trace_handler : NULL);
+#else
+	(void)enable;
+	warning("no sip trace in libre\n");
+#endif
+}
+
+
 /**
  * Reset the SIP transports for all User-Agents
  *
@@ -1682,21 +1712,6 @@ int uag_reset_transp(bool reg, bool reinvite)
 
 
 /**
- * Print the SIP Status for all User-Agents
- *
- * @param pf     Print handler for debug output
- * @param unused Unused parameter
- *
- * @return 0 if success, otherwise errorcode
- */
-int ua_print_sip_status(struct re_printf *pf, void *unused)
-{
-	(void)unused;
-	return sip_debug(pf, uag.sip);
-}
-
-
-/**
  * Print all calls for a given User-Agent
  *
  * @param pf     Print handler for debug output
@@ -1717,7 +1732,7 @@ int ua_print_calls(struct re_printf *pf, const struct ua *ua)
 
 	n = list_count(&ua->calls);
 
-	err |= re_hprintf(pf, "\n--- List of active calls (%u): ---\n",
+	err |= re_hprintf(pf, "\n--- Active calls (%u) ---\n",
 			  n);
 
 	for (linenum=CALL_LINENUM_MIN; linenum<CALL_LINENUM_MAX; linenum++) {
@@ -1728,8 +1743,8 @@ int ua_print_calls(struct re_printf *pf, const struct ua *ua)
 		if (call) {
 			++count;
 
-			err |= re_hprintf(pf, "  %c %H\n",
-					  call == ua_call(ua) ? '>' : ' ',
+			err |= re_hprintf(pf, "%s %H\n",
+					  call == ua_call(ua) ? ">" : " ",
 					  call_info, call);
 		}
 
@@ -1773,16 +1788,6 @@ struct sipsess_sock *uag_sipsess_sock(void)
 struct sipevent_sock *uag_sipevent_sock(void)
 {
 	return uag.evsock;
-}
-
-
-struct tls *uag_tls(void)
-{
-#ifdef USE_TLS
-	return uag.tls;
-#else
-	return NULL;
-#endif
 }
 
 

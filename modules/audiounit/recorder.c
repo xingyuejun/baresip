@@ -236,6 +236,8 @@ int audiounit_recorder_alloc(struct ausrc_st **stp, const struct ausrc *as,
 				   kAudioOutputUnitProperty_EnableIO,
 				   kAudioUnitScope_Input, inputBus,
 				   &enable, sizeof(enable));
+	if (ret)
+		goto out;
 
 #if ! TARGET_OS_IPHONE
 	ret = AudioUnitSetProperty(st->au_in,
@@ -264,6 +266,10 @@ int audiounit_recorder_alloc(struct ausrc_st **stp, const struct ausrc *as,
 		goto out;
 #endif
 
+#if TARGET_OS_IPHONE
+	hw_srate = prm->srate;
+	(void)hw_size;
+#else
 	ret = AudioUnitGetProperty(st->au_in,
 				   kAudioUnitProperty_SampleRate,
 				   kAudioUnitScope_Input,
@@ -272,6 +278,7 @@ int audiounit_recorder_alloc(struct ausrc_st **stp, const struct ausrc *as,
 				   &hw_size);
 	if (ret)
 		goto out;
+#endif
 
 	debug("audiounit: record hardware sample rate is now at %f Hz\n",
 	      hw_srate);
